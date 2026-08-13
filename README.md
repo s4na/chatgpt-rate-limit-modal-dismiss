@@ -1,1 +1,28 @@
-# chatgpt-rate-limit-modal-dismiss
+# ChatGPT Rate Limit Modal Dismiss
+
+ChatGPTの会話履歴で表示される「リクエストが多すぎます」モーダルだけを自動で閉じるChrome拡張です。
+
+## 動作
+
+次の条件をすべて満たす場合に限り、モーダル内の「了解」ボタンをクリックします。
+
+- URLが `https://chatgpt.com/*`
+- モーダルの `data-testid` が `modal-conversation-history-rate-limit`
+- ダイアログの見出しが「リクエストが多すぎます」
+- ダイアログ内に「了解」ボタンがある
+
+要素の削除やCSSでの非表示は行いません。ChatGPT自身のボタン処理を使うため、スクロールロックやポインター操作の状態も通常の終了処理で解除されます。
+
+この拡張はモーダルを閉じるだけです。サーバー側のアクセス制限を回避するものではありません。
+
+## インストール
+
+1. このリポジトリをダウンロードまたはcloneする
+2. Chromeで `chrome://extensions/` を開く
+3. 「デベロッパー モード」を有効にする
+4. 「パッケージ化されていない拡張機能を読み込む」を選ぶ
+5. このリポジトリのディレクトリを指定する
+
+## 権限
+
+追加のChrome権限は要求しません。content scriptは `https://chatgpt.com/*` でのみ動作します。
