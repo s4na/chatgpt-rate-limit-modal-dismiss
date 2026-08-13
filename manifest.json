@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "ChatGPT Rate Limit Modal Dismiss",
+  "version": "1.0.0",
+  "description": "ChatGPTの会話履歴レート制限モーダルを安全に自動で閉じます。",
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
