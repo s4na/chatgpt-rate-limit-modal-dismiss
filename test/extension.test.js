@@ -41,13 +41,18 @@ async function openFixture(page, { heading, button = "了解" }) {
   });
 }
 
-async function replaceModalAndReadFirstFrame(page, heading, handlerDelay = 0) {
+async function replaceModalAndReadFirstFrame(
+  page,
+  heading,
+  { handlerDelay = 0, scrollUnlockDelay = 0 } = {}
+) {
   return page.evaluate(
     ({
       dismissNotificationSelector,
       modalHeading,
       modalSelectorForTest,
-      clickHandlerDelay
+      clickHandlerDelay,
+      unlockDelay
     }) =>
       new Promise((resolve) => {
         document.querySelectorAll(dismissNotificationSelector).forEach(
@@ -69,9 +74,11 @@ async function replaceModalAndReadFirstFrame(page, heading, handlerDelay = 0) {
         const attachClickHandler = () => {
           document.querySelector("button").addEventListener("click", () => {
             document.body.dataset.dismissed = "true";
-            document.body.removeAttribute("data-scroll-locked");
-            document.body.style.pointerEvents = "";
             modal.remove();
+            globalThis.setTimeout(() => {
+              document.body.removeAttribute("data-scroll-locked");
+              document.body.style.pointerEvents = "";
+            }, unlockDelay);
           });
         };
 
@@ -97,7 +104,8 @@ async function replaceModalAndReadFirstFrame(page, heading, handlerDelay = 0) {
       clickHandlerDelay: handlerDelay,
       dismissNotificationSelector: notificationSelector,
       modalHeading: heading,
-      modalSelectorForTest: modalSelector
+      modalSelectorForTest: modalSelector,
+      unlockDelay: scrollUnlockDelay
     }
   );
 }
@@ -144,7 +152,7 @@ test("loads the extension and dismisses only the target modal", async (t) => {
     const firstFrame = await replaceModalAndReadFirstFrame(
       page,
       "リクエストが多すぎます",
-      150
+      { handlerDelay: 150 }
     );
     assert.deepEqual(firstFrame, {
       dismissed: null,
@@ -157,6 +165,60 @@ test("loads the extension and dismisses only the target modal", async (t) => {
     assert.equal(
       await page.$eval(notificationSelector, ({ textContent }) => textContent),
       "「リクエストが多すぎます」を自動で閉じました"
+    );
+    await page.close();
+  });
+
+  await t.test("waits for delayed scroll-lock cleanup before notifying", async () => {
+    const page = await browser.newPage();
+    await openFixture(page, { heading: "リクエストが多すぎます" });
+    await page.waitForFunction(() => document.body.dataset.dismissed === "true");
+
+    await replaceModalAndReadFirstFrame(page, "リクエストが多すぎます", {
+      scrollUnlockDelay: 150
+    });
+    await page.waitForFunction(
+      (selector) =>
+        document.querySelector(selector)?.textContent ===
+        "「リクエストが多すぎます」を自動で閉じました",
+      {},
+      notificationSelector
+    );
+    await page.close();
+  });
+
+  await t.test("does not repeatedly hide a modal that failed to close", async () => {
+    const page = await browser.newPage();
+    await openFixture(page, { heading: "リクエストが多すぎます" });
+    await page.waitForFunction(() => document.body.dataset.dismissed === "true");
+
+    await page.evaluate(() => {
+      delete document.body.dataset.dismissed;
+      document.body.innerHTML = `
+        <div data-testid="modal-conversation-history-rate-limit">
+          <div role="dialog">
+            <h2>リクエストが多すぎます</h2>
+            <button>了解</button>
+          </div>
+        </div>
+      `;
+    });
+    await page.waitForFunction(
+      (selector) => document.querySelector(selector)?.style.display === "none",
+      {},
+      modalSelector
+    );
+    await page.waitForFunction(
+      (selector) => document.querySelector(selector)?.style.display === "",
+      { timeout: 3000 },
+      modalSelector
+    );
+
+    await page.evaluate(() => document.body.append(document.createElement("div")));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(
+      await page.$eval(modalSelector, ({ style }) => style.display),
+      ""
     );
     await page.close();
   });
