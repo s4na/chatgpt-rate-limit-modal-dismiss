@@ -76,7 +76,10 @@
 
   function attemptDismissal(state) {
     const button = findDismissButton(state.modal);
-    button?.click();
+    if (button) {
+      state.button = button;
+      button.click();
+    }
 
     if (!state.modal.isConnected) {
       dismissals.delete(state.modal);
