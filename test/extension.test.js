@@ -41,7 +41,8 @@ async function openFixture(page, { heading, button = "了解" }) {
 
 test("loads the extension and dismisses only the target modal", async (t) => {
   const browser = await puppeteer.launch({
-    enableExtensions: [extensionPath]
+    enableExtensions: [extensionPath],
+    args: process.env.CI ? ["--no-sandbox"] : []
   });
   t.after(() => browser.close());
 
