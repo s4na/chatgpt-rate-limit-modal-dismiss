@@ -4,6 +4,8 @@ import path from "node:path";
 import puppeteer from "puppeteer";
 
 const extensionPath = path.resolve(".");
+const notificationSelector =
+  "[data-chatgpt-rate-limit-dismiss-notification]";
 
 async function openFixture(page, { heading, button = "了解" }) {
   await page.setRequestInterception(true);
@@ -39,25 +41,48 @@ async function openFixture(page, { heading, button = "了解" }) {
   });
 }
 
-async function replaceModal(page, heading) {
-  await page.evaluate((modalHeading) => {
-    delete document.body.dataset.dismissed;
-    document.body.setAttribute("data-scroll-locked", "1");
-    document.body.style.pointerEvents = "none";
-    document.body.innerHTML = `
-      <div data-testid="modal-conversation-history-rate-limit">
-        <div role="dialog">
-          <h2>${modalHeading}</h2>
-          <button>了解</button>
-        </div>
-      </div>
-    `;
-    document.querySelector("button").addEventListener("click", () => {
-      document.body.dataset.dismissed = "true";
-      document.body.removeAttribute("data-scroll-locked");
-      document.body.style.pointerEvents = "";
-    });
-  }, heading);
+async function replaceModalAndReadFirstFrame(page, heading) {
+  return page.evaluate(
+    ({ modalHeading, dismissNotificationSelector }) =>
+      new Promise((resolve) => {
+        document.querySelectorAll(dismissNotificationSelector).forEach(
+          (notification) => notification.remove()
+        );
+        delete document.body.dataset.dismissed;
+        document.body.setAttribute("data-scroll-locked", "1");
+        document.body.style.pointerEvents = "none";
+        document.body.innerHTML = `
+          <div data-testid="modal-conversation-history-rate-limit">
+            <div role="dialog">
+              <h2>${modalHeading}</h2>
+              <button>了解</button>
+            </div>
+          </div>
+        `;
+
+        const modal = document.querySelector(
+          '[data-testid="modal-conversation-history-rate-limit"]'
+        );
+        document.querySelector("button").addEventListener("click", () => {
+          document.body.dataset.dismissed = "true";
+          document.body.removeAttribute("data-scroll-locked");
+          document.body.style.pointerEvents = "";
+        });
+
+        globalThis.requestAnimationFrame(() => {
+          resolve({
+            display: globalThis.getComputedStyle(modal).display,
+            dismissed: document.body.dataset.dismissed,
+            notification: document.querySelector(dismissNotificationSelector)
+              ?.textContent
+          });
+        });
+      }),
+    {
+      modalHeading: heading,
+      dismissNotificationSelector: notificationSelector
+    }
+  );
 }
 
 test("loads the extension and dismisses only the target modal", async (t) => {
@@ -70,18 +95,25 @@ test("loads the extension and dismisses only the target modal", async (t) => {
   const extensionId = await browser.installExtension(extensionPath);
   assert.ok(extensionId, "the unpacked extension should be installed");
 
-  await t.test("dismisses an initially present and a later modal", async () => {
+  await t.test("hides and dismisses the target before its first frame", async () => {
     const page = await browser.newPage();
     await openFixture(page, { heading: "リクエストが多すぎます" });
-
     await page.waitForFunction(() => document.body.dataset.dismissed === "true");
+
     assert.equal(
-      await page.evaluate(() => document.body.hasAttribute("data-scroll-locked")),
-      false
+      await page.$eval(notificationSelector, ({ textContent }) => textContent),
+      "「リクエストが多すぎます」を自動で閉じました"
     );
 
-    await replaceModal(page, "リクエストが多すぎます");
-    await page.waitForFunction(() => document.body.dataset.dismissed === "true");
+    const firstFrame = await replaceModalAndReadFirstFrame(
+      page,
+      "リクエストが多すぎます"
+    );
+    assert.deepEqual(firstFrame, {
+      display: "none",
+      dismissed: "true",
+      notification: "「リクエストが多すぎます」を自動で閉じました"
+    });
     assert.equal(
       await page.evaluate(() => document.body.hasAttribute("data-scroll-locked")),
       false
@@ -89,17 +121,20 @@ test("loads the extension and dismisses only the target modal", async (t) => {
     await page.close();
   });
 
-  await t.test("does not dismiss another modal after initialization", async () => {
+  await t.test("leaves another notification visible", async () => {
     const page = await browser.newPage();
     await openFixture(page, { heading: "リクエストが多すぎます" });
     await page.waitForFunction(() => document.body.dataset.dismissed === "true");
 
-    await replaceModal(page, "削除しますか？");
-
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    const firstFrame = await replaceModalAndReadFirstFrame(page, "削除しますか？");
+    assert.deepEqual(firstFrame, {
+      display: "block",
+      dismissed: undefined,
+      notification: undefined
+    });
     assert.equal(
-      await page.evaluate(() => document.body.dataset.dismissed),
-      undefined
+      await page.evaluate(() => document.body.hasAttribute("data-scroll-locked")),
+      true
     );
     await page.close();
   });
