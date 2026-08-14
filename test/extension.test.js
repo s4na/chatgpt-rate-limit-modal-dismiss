@@ -39,17 +39,48 @@ async function openFixture(page, { heading, button = "了解" }) {
   });
 }
 
+async function replaceModal(page, heading) {
+  await page.evaluate((modalHeading) => {
+    delete document.body.dataset.dismissed;
+    document.body.setAttribute("data-scroll-locked", "1");
+    document.body.style.pointerEvents = "none";
+    document.body.innerHTML = `
+      <div data-testid="modal-conversation-history-rate-limit">
+        <div role="dialog">
+          <h2>${modalHeading}</h2>
+          <button>了解</button>
+        </div>
+      </div>
+    `;
+    document.querySelector("button").addEventListener("click", () => {
+      document.body.dataset.dismissed = "true";
+      document.body.removeAttribute("data-scroll-locked");
+      document.body.style.pointerEvents = "";
+    });
+  }, heading);
+}
+
 test("loads the extension and dismisses only the target modal", async (t) => {
   const browser = await puppeteer.launch({
-    enableExtensions: [extensionPath],
+    enableExtensions: true,
     args: process.env.CI ? ["--no-sandbox"] : []
   });
   t.after(() => browser.close());
 
-  await t.test("dismisses the conversation history rate-limit modal", async () => {
+  const extensionId = await browser.installExtension(extensionPath);
+  assert.ok(extensionId, "the unpacked extension should be installed");
+
+  await t.test("dismisses an initially present and a later modal", async () => {
     const page = await browser.newPage();
     await openFixture(page, { heading: "リクエストが多すぎます" });
 
+    await page.waitForFunction(() => document.body.dataset.dismissed === "true");
+    assert.equal(
+      await page.evaluate(() => document.body.hasAttribute("data-scroll-locked")),
+      false
+    );
+
+    await replaceModal(page, "リクエストが多すぎます");
     await page.waitForFunction(() => document.body.dataset.dismissed === "true");
     assert.equal(
       await page.evaluate(() => document.body.hasAttribute("data-scroll-locked")),
@@ -63,20 +94,7 @@ test("loads the extension and dismisses only the target modal", async (t) => {
     await openFixture(page, { heading: "リクエストが多すぎます" });
     await page.waitForFunction(() => document.body.dataset.dismissed === "true");
 
-    await page.evaluate(() => {
-      delete document.body.dataset.dismissed;
-      document.body.innerHTML = `
-        <div data-testid="modal-conversation-history-rate-limit">
-          <div role="dialog">
-            <h2>削除しますか？</h2>
-            <button>了解</button>
-          </div>
-        </div>
-      `;
-      document.querySelector("button").addEventListener("click", () => {
-        document.body.dataset.dismissed = "true";
-      });
-    });
+    await replaceModal(page, "削除しますか？");
 
     await new Promise((resolve) => setTimeout(resolve, 250));
     assert.equal(
