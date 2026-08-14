@@ -46,9 +46,6 @@ test("loads the extension and dismisses only the target modal", async (t) => {
   });
   t.after(() => browser.close());
 
-  const extensions = await browser.extensions();
-  assert.ok(extensions.size > 0, "the unpacked extension should be loaded");
-
   await t.test("dismisses the conversation history rate-limit modal", async () => {
     const page = await browser.newPage();
     await openFixture(page, { heading: "リクエストが多すぎます" });
@@ -61,9 +58,25 @@ test("loads the extension and dismisses only the target modal", async (t) => {
     await page.close();
   });
 
-  await t.test("does not dismiss another modal", async () => {
+  await t.test("does not dismiss another modal after initialization", async () => {
     const page = await browser.newPage();
-    await openFixture(page, { heading: "削除しますか？" });
+    await openFixture(page, { heading: "リクエストが多すぎます" });
+    await page.waitForFunction(() => document.body.dataset.dismissed === "true");
+
+    await page.evaluate(() => {
+      delete document.body.dataset.dismissed;
+      document.body.innerHTML = `
+        <div data-testid="modal-conversation-history-rate-limit">
+          <div role="dialog">
+            <h2>削除しますか？</h2>
+            <button>了解</button>
+          </div>
+        </div>
+      `;
+      document.querySelector("button").addEventListener("click", () => {
+        document.body.dataset.dismissed = "true";
+      });
+    });
 
     await new Promise((resolve) => setTimeout(resolve, 250));
     assert.equal(

@@ -2,6 +2,12 @@ import { defineConfig } from "eslint/config";
 
 export default defineConfig([
   {
+    rules: {
+      "no-undef": "error",
+      "no-unused-vars": "error"
+    }
+  },
+  {
     files: ["content.js"],
     languageOptions: {
       globals: {
@@ -11,7 +17,13 @@ export default defineConfig([
     }
   },
   {
-    files: ["eslint.config.js", "test/**/*.js"]
+    files: ["eslint.config.js", "test/**/*.js"],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        setTimeout: "readonly"
+      }
+    }
   },
   {
     ignores: ["node_modules/"]
