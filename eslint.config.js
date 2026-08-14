@@ -20,6 +20,7 @@ export default defineConfig([
     files: ["eslint.config.js", "test/**/*.js"],
     languageOptions: {
       globals: {
+        document: "readonly",
         process: "readonly",
         setTimeout: "readonly"
       }
