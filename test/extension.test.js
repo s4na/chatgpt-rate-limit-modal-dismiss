@@ -18,16 +18,13 @@ async function openFixture(page, { heading, button = "了解" }) {
             <div data-testid="modal-conversation-history-rate-limit">
               <div role="dialog">
                 <h2>${heading}</h2>
-                <button>${button}</button>
+                <button onclick="
+                  document.body.dataset.dismissed = 'true';
+                  document.body.removeAttribute('data-scroll-locked');
+                  document.body.style.pointerEvents = '';
+                ">${button}</button>
               </div>
             </div>
-            <script>
-              document.querySelector("button").addEventListener("click", () => {
-                document.body.dataset.dismissed = "true";
-                document.body.removeAttribute("data-scroll-locked");
-                document.body.style.pointerEvents = "";
-              });
-            </script>
           </body>`
       });
       return;
@@ -55,7 +52,11 @@ async function replaceModalAndReadFirstFrame(page, heading) {
           <div data-testid="modal-conversation-history-rate-limit">
             <div role="dialog">
               <h2>${modalHeading}</h2>
-              <button>了解</button>
+              <button onclick="
+                document.body.dataset.dismissed = 'true';
+                document.body.removeAttribute('data-scroll-locked');
+                document.body.style.pointerEvents = '';
+              ">了解</button>
             </div>
           </div>
         `;
@@ -63,11 +64,6 @@ async function replaceModalAndReadFirstFrame(page, heading) {
         const modal = document.querySelector(
           '[data-testid="modal-conversation-history-rate-limit"]'
         );
-        document.querySelector("button").addEventListener("click", () => {
-          document.body.dataset.dismissed = "true";
-          document.body.removeAttribute("data-scroll-locked");
-          document.body.style.pointerEvents = "";
-        });
 
         globalThis.requestAnimationFrame(() => {
           resolve({
