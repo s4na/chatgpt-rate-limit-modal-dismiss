@@ -48,7 +48,9 @@ test("loads the extension and dismisses only the target modal", async (t) => {
 
   const extensions = await browser.extensions();
   assert.ok(
-    extensions.some(({ name }) => name === "ChatGPT Rate Limit Modal Dismiss"),
+    [...extensions.values()].some(
+      ({ name }) => name === "ChatGPT Rate Limit Modal Dismiss"
+    ),
     "the unpacked extension should be loaded"
   );
 
