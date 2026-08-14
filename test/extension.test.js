@@ -62,10 +62,13 @@ async function replaceModal(page, heading) {
 
 test("loads the extension and dismisses only the target modal", async (t) => {
   const browser = await puppeteer.launch({
-    enableExtensions: [extensionPath],
+    enableExtensions: true,
     args: process.env.CI ? ["--no-sandbox"] : []
   });
   t.after(() => browser.close());
+
+  const extensionId = await browser.installExtension(extensionPath);
+  assert.ok(extensionId, "the unpacked extension should be installed");
 
   await t.test("dismisses an initially present and a later modal", async () => {
     const page = await browser.newPage();
