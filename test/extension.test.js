@@ -219,6 +219,10 @@ test("loads the extension and dismisses only the target modal", async (t) => {
       {},
       modalSelector
     );
+    await page.evaluate(() => {
+      const button = document.querySelector("button");
+      button.replaceWith(button.cloneNode(true));
+    });
     await page.waitForFunction(
       (selector) => document.querySelector(selector)?.style.display === "",
       { timeout: 3000 },
