@@ -55,7 +55,23 @@
     } else {
       state.modal.style.removeProperty("display");
     }
-    dismissals.delete(state.modal);
+    state.status = "failed";
+  }
+
+  function notifyAfterScrollUnlock(state, attempts = 0) {
+    if (!document.body?.hasAttribute("data-scroll-locked")) {
+      showDismissNotification(state.message);
+      return;
+    }
+
+    if (attempts + 1 >= maxDismissAttempts) {
+      return;
+    }
+
+    globalThis.setTimeout(
+      () => notifyAfterScrollUnlock(state, attempts + 1),
+      dismissRetryInterval
+    );
   }
 
   function attemptDismissal(state) {
@@ -64,9 +80,7 @@
 
     if (!state.modal.isConnected) {
       dismissals.delete(state.modal);
-      if (!document.body?.hasAttribute("data-scroll-locked")) {
-        showDismissNotification(state.message);
-      }
+      notifyAfterScrollUnlock(state);
       return;
     }
 
@@ -86,21 +100,27 @@
     for (const modal of document.querySelectorAll(modalSelector)) {
       const heading = modal.querySelector('[role="dialog"] h2');
       const message = heading?.textContent?.trim();
+      const button = findDismissButton(modal);
+      const previousDismissal = dismissals.get(modal);
 
       if (
         message !== "リクエストが多すぎます" ||
-        !findDismissButton(modal) ||
-        dismissals.has(modal)
+        !button ||
+        (previousDismissal &&
+          (previousDismissal.status !== "failed" ||
+            previousDismissal.button === button))
       ) {
         continue;
       }
 
       const state = {
         attempts: 0,
+        button,
         message,
         modal,
         originalDisplay: modal.style.getPropertyValue("display"),
-        originalDisplayPriority: modal.style.getPropertyPriority("display")
+        originalDisplayPriority: modal.style.getPropertyPriority("display"),
+        status: "pending"
       };
       dismissals.set(modal, state);
       modal.style.setProperty("display", "none", "important");
