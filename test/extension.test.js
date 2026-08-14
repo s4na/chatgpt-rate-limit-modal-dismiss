@@ -68,9 +68,10 @@ async function replaceModalAndReadFirstFrame(page, heading) {
         globalThis.requestAnimationFrame(() => {
           resolve({
             display: globalThis.getComputedStyle(modal).display,
-            dismissed: document.body.dataset.dismissed,
-            notification: document.querySelector(dismissNotificationSelector)
-              ?.textContent
+            dismissed: document.body.dataset.dismissed ?? null,
+            notification:
+              document.querySelector(dismissNotificationSelector)?.textContent ??
+              null
           });
         });
       }),
@@ -125,8 +126,8 @@ test("loads the extension and dismisses only the target modal", async (t) => {
     const firstFrame = await replaceModalAndReadFirstFrame(page, "削除しますか？");
     assert.deepEqual(firstFrame, {
       display: "block",
-      dismissed: undefined,
-      notification: undefined
+      dismissed: null,
+      notification: null
     });
     assert.equal(
       await page.evaluate(() => document.body.hasAttribute("data-scroll-locked")),
