@@ -9,6 +9,16 @@ const modalSelector =
 const notificationSelector =
   "[data-chatgpt-rate-limit-dismiss-notification]";
 
+async function waitForDismissNotification(page) {
+  await page.waitForFunction(
+    (selector) =>
+      document.querySelector(selector)?.textContent ===
+      "「リクエストが多すぎます」を自動で閉じました",
+    {},
+    notificationSelector
+  );
+}
+
 async function openFixture(page, { heading, button = "了解" }) {
   await page.setRequestInterception(true);
   page.on("request", (request) => {
@@ -124,7 +134,7 @@ test("loads the extension and dismisses only the target modal", async (t) => {
     const page = await browser.newPage();
     await openFixture(page, { heading: "リクエストが多すぎます" });
     await page.waitForFunction(() => document.body.dataset.dismissed === "true");
-    await page.waitForSelector(notificationSelector);
+    await waitForDismissNotification(page);
 
     assert.equal(
       await page.$eval(notificationSelector, ({ textContent }) => textContent),
@@ -137,6 +147,7 @@ test("loads the extension and dismisses only the target modal", async (t) => {
     );
     assert.equal(firstFrame.display, "none");
     assert.equal(firstFrame.dismissed, "true");
+    await waitForDismissNotification(page);
     assert.equal(
       await page.$eval(notificationSelector, ({ textContent }) => textContent),
       "「リクエストが多すぎます」を自動で閉じました"
@@ -161,7 +172,7 @@ test("loads the extension and dismisses only the target modal", async (t) => {
     });
 
     await page.waitForFunction(() => document.body.dataset.dismissed === "true");
-    await page.waitForSelector(notificationSelector);
+    await waitForDismissNotification(page);
     assert.equal(
       await page.$eval(notificationSelector, ({ textContent }) => textContent),
       "「リクエストが多すぎます」を自動で閉じました"
