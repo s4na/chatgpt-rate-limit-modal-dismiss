@@ -5,7 +5,9 @@
     '[data-testid="modal-conversation-history-rate-limit"]';
   const notificationSelector =
     "[data-chatgpt-rate-limit-dismiss-notification]";
-  const clickedButtons = new WeakSet();
+  const maxDismissAttempts = 20;
+  const dismissRetryInterval = 100;
+  const dismissals = new WeakMap();
 
   function showDismissNotification(message) {
     document.querySelector(notificationSelector)?.remove();
@@ -13,7 +15,6 @@
     const notification = document.createElement("div");
     notification.dataset.chatgptRateLimitDismissNotification = "";
     notification.setAttribute("role", "status");
-    notification.textContent = `「${message}」を自動で閉じました`;
     notification.style.cssText = [
       "all: initial",
       "position: fixed",
@@ -31,30 +32,79 @@
     ].join(";");
 
     document.documentElement.append(notification);
-    globalThis.setTimeout(() => notification.remove(), 4000);
+    globalThis.setTimeout(() => {
+      notification.textContent = `「${message}」を自動で閉じました`;
+      globalThis.setTimeout(() => notification.remove(), 4000);
+    }, 0);
+  }
+
+  function findDismissButton(modal) {
+    const dialog = modal.querySelector('[role="dialog"]');
+    return [...(dialog?.querySelectorAll("button") ?? [])].find(
+      (candidate) => candidate.textContent?.trim() === "了解"
+    );
+  }
+
+  function restoreModal(state) {
+    if (state.originalDisplay) {
+      state.modal.style.setProperty(
+        "display",
+        state.originalDisplay,
+        state.originalDisplayPriority
+      );
+    } else {
+      state.modal.style.removeProperty("display");
+    }
+    dismissals.delete(state.modal);
+  }
+
+  function attemptDismissal(state) {
+    const button = findDismissButton(state.modal);
+    button?.click();
+
+    if (!state.modal.isConnected) {
+      dismissals.delete(state.modal);
+      if (!document.body?.hasAttribute("data-scroll-locked")) {
+        showDismissNotification(state.message);
+      }
+      return;
+    }
+
+    state.attempts += 1;
+    if (state.attempts >= maxDismissAttempts) {
+      restoreModal(state);
+      return;
+    }
+
+    globalThis.setTimeout(
+      () => attemptDismissal(state),
+      dismissRetryInterval
+    );
   }
 
   function dismissRateLimitModal() {
     for (const modal of document.querySelectorAll(modalSelector)) {
-      const dialog = modal.querySelector('[role="dialog"]');
-      const heading = dialog?.querySelector("h2");
+      const heading = modal.querySelector('[role="dialog"] h2');
       const message = heading?.textContent?.trim();
-      const button = [...(dialog?.querySelectorAll("button") ?? [])].find(
-        (candidate) => candidate.textContent?.trim() === "了解"
-      );
 
       if (
         message !== "リクエストが多すぎます" ||
-        !button ||
-        clickedButtons.has(button)
+        !findDismissButton(modal) ||
+        dismissals.has(modal)
       ) {
         continue;
       }
 
+      const state = {
+        attempts: 0,
+        message,
+        modal,
+        originalDisplay: modal.style.getPropertyValue("display"),
+        originalDisplayPriority: modal.style.getPropertyPriority("display")
+      };
+      dismissals.set(modal, state);
       modal.style.setProperty("display", "none", "important");
-      clickedButtons.add(button);
-      button.click();
-      showDismissNotification(message);
+      attemptDismissal(state);
     }
   }
 
